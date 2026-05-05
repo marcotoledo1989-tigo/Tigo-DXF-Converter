@@ -1,139 +1,167 @@
 import streamlit as st
 import ezdxf
+from ezdxf import recover
 import simplekml
 from pyproj import Transformer
 from pathlib import Path
 import random
-import io  # Vital para manejar archivos en memoria
+import io
 
 # --- CONFIGURACIÓN DE MARCA TIGO ---
 TIGO_BLUE = "#00338D"
 TIGO_YELLOW = "#FFF000"
 
 st.set_page_config(
-   page_title="Tigo - Convertidor de Red Pesado",
-   page_icon="📡",
-   layout="centered"
+    page_title="Tigo Network Converter",
+    page_icon="📡",
+    layout="wide"
 )
 
-# Estilo personalizado Tigo
+# CSS para una interfaz moderna y corporativa
 st.markdown(f"""
-   <style>
-   .stApp {{ background-color: #f4f4f4; }}
-   .stButton>button {{
-       background-color: {TIGO_BLUE};
-       color: white;
-       border-radius: 5px;
-       font-weight: bold;
-       width: 100%;
-   }}
-   h1, h2, h3 {{ color: {TIGO_BLUE}; font-family: 'Arial', sans-serif; }}
-   .stProgress > div > div > div > div {{ background-color: {TIGO_YELLOW}; }}
-   </style>
-   """, unsafe_allow_html=True)
+    <style>
+    .main {{ background-color: #f8f9fa; }}
+    .stAlert {{ border-left: 5px solid {TIGO_BLUE}; }}
+    .stButton>button {{
+        background-color: {TIGO_BLUE};
+        color: white;
+        border-radius: 8px;
+        padding: 0.5rem 2rem;
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{
+        background-color: #00266e;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }}
+    .tigo-card {{
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        border-top: 4px solid {TIGO_BLUE};
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- LÓGICA DE CONVERSIÓN ---
+# --- MOTOR DE CONVERSIÓN ---
 transformer = Transformer.from_crs("EPSG:32719", "EPSG:4326", always_xy=True)
 
-def color_kml_random():
-   r, g, b = random.randint(50,255), random.randint(50,255), random.randint(50,255)
-   return simplekml.Color.rgb(r, g, b)
+def get_random_color():
+    return simplekml.Color.rgb(random.randint(50,255), random.randint(50,255), random.randint(50,255))
 
-def obtener_icono_por_bloque(nombre_bloque, layer):
-   texto = f"{nombre_bloque} {layer}".upper()
-   if "POSTE" in texto: return "http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png"
-   elif "CAMARA" in texto: return "http://maps.google.com/mapfiles/kml/shapes/camera.png"
-   elif "MUFA" in texto: return "http://maps.google.com/mapfiles/kml/shapes/target.png"
-   elif "F.O" in texto or "FIBRA" in texto: return "http://maps.google.com/mapfiles/kml/shapes/placemark_circle_highlight.png"
-   elif "DUCTO" in texto: return "http://maps.google.com/mapfiles/kml/shapes/line.png"
-   elif "NODO" in texto: return "http://maps.google.com/mapfiles/kml/shapes/square.png"
-   else: return "http://maps.google.com/mapfiles/kml/shapes/placemark_square.png"
+def get_icon_url(name, layer):
+    text = f"{name} {layer}".upper()
+    icons = {
+        "POSTE": "0", "CAMARA": "1", "MUFA": "2",
+        "FIBRA": "3", "F.O": "3", "DUCTO": "4", "NODO": "5"
+    }
+    for key, val in icons.items():
+        if key in text:
+            return f"http://googleusercontent.com/maps.google.com/{val}"
+    return "http://maps.google.com/mapfiles/kml/shapes/placemark_square.png"
 
-# --- INTERFAZ DE USUARIO ---
-st.image("https://upload.wikimedia.org/wikipedia/commons/b/b0/Tigo.svg", width=150)
-st.title("Convertidor de Archivos")
-st.info("🚀 Optimizado para archivos de ingeniería pesados (EPSG:32719)")
+# --- INTERFAZ ---
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/b/b0/Tigo.svg", width=120)
 
-uploaded_file = st.file_uploader("Subir archivo DXF", type=["dxf"])
+with col2:
+    st.title("Network Engineering Converter")
+    st.write("Herramienta de automatización para Red Externa")
 
-if uploaded_file is not None:
-   try:
-       # 1. LEER ARCHIVO DESDE MEMORIA (Corrección Error No such file)
-       bytes_data = uploaded_file.getvalue()
+st.markdown('<div class="tigo-card">', unsafe_allow_html=True)
+st.subheader("🛰️ Configuración de Conversión")
+st.info("Sistema configurado para: **EPSG:32719 (WGS 84 / UTM zone 19S)**")
+uploaded_file = st.file_uploader("Selecciona el archivo DXF de Tigo", type=["dxf"])
+st.markdown('</div>', unsafe_allow_html=True)
 
-       with st.spinner('Cargando geometría en memoria...'):
-           stream = io.BytesIO(bytes_data)
-           doc = ezdxf.readfile(stream)
-           msp = doc.modelspace()
-           entities = list(msp)
-           total = len(entities)
+if uploaded_file:
+    try:
+        # Leer datos binarios
+        file_bytes = uploaded_file.getvalue()
 
-       kml = simplekml.Kml()
-       folders = {}
-       colores = {}
+        with st.status("Procesando cartografía...", expanded=True) as status:
+            st.write("Leyendo estructura DXF...")
 
-       st.write(f"Procesando **{total}** entidades...")
-       progress_bar = st.progress(0)
+            # El método 'recover' es el mejor para archivos pesados/dañados
+            stream = io.BytesIO(file_bytes)
+            doc, auditor = recover.read(stream)
 
-       # 2. PROCESAMIENTO POR ENTIDAD
-       for i, entity in enumerate(entities):
-           layer = entity.dxf.layer
-           if layer not in folders:
-               folders[layer] = kml.newfolder(name=layer)
-               colores[layer] = color_kml_random()
+            if auditor.has_errors:
+                st.warning(f"Se encontraron {len(auditor.errors)} errores menores en el DXF, procediendo con la recuperación...")
 
-           folder = folders[layer]
+            msp = doc.modelspace()
+            entities = list(msp)
+            total = len(entities)
 
-           if entity.dxftype() == "INSERT":
-               x, y = entity.dxf.insert.x, entity.dxf.insert.y
-               lon, lat = transformer.transform(x, y)
-               p = folder.newpoint(name=layer, coords=[(lon, lat)])
-               p.style.iconstyle.icon.href = obtener_icono_por_bloque(entity.dxf.name, layer)
-               p.style.iconstyle.color = colores[layer]
-               p.description = f"Infraestructura Tigo\nBloque: {entity.dxf.name}\nCapa: {layer}"
+            kml = simplekml.Kml()
+            folders = {}
+            layer_colors = {}
 
-           elif entity.dxftype() == "LINE":
-               x1, y1 = entity.dxf.start.x, entity.dxf.start.y
-               x2, y2 = entity.dxf.end.x, entity.dxf.end.y
-               lon1, lat1 = transformer.transform(x1, y1)
-               lon2, lat2 = transformer.transform(x2, y2)
-               ls = folder.newlinestring(name=layer, coords=[(lon1, lat1), (lon2, lat2)])
-               ls.style.linestyle.color = colores[layer]
-               ls.style.linestyle.width = 2
+            progress_bar = st.progress(0)
 
-           elif entity.dxftype() in ["LWPOLYLINE", "POLYLINE"]:
-               try:
-                   puntos_proyecto = []
-                   for p_coord in entity.get_points():
-                       lon, lat = transformer.transform(p_coord[0], p_coord[1])
-                       puntos_proyecto.append((lon, lat))
-                   if puntos_proyecto:
-                       ls = folder.newlinestring(name=layer, coords=puntos_proyecto)
-                       ls.style.linestyle.color = colores[layer]
-                       ls.style.linestyle.width = 2
-               except:
-                   continue
+            st.write(f"Convirtiendo {total} elementos a coordenadas GPS...")
 
-           # Actualizar barra cada 200 entidades
-           if i % 200 == 0:
-               progress_bar.progress((i + 1) / total)
+            for i, ent in enumerate(entities):
+                layer = ent.dxf.layer
+                if layer not in folders:
+                    folders[layer] = kml.newfolder(name=layer)
+                    layer_colors[layer] = get_random_color()
 
-       # 3. GENERACIÓN DEL KML FINAL
-       progress_bar.progress(1.0)
-       st.success("¡Conversión exitosa!")
+                target = folders[layer]
 
-       # Guardar resultado en memoria para descarga
-       kml_string = kml.kml()
+                # --- LÓGICA POR TIPO ---
+                if ent.dxftype() == "INSERT":
+                    lon, lat = transformer.transform(ent.dxf.insert.x, ent.dxf.insert.y)
+                    p = target.newpoint(name=layer, coords=[(lon, lat)])
+                    p.style.iconstyle.icon.href = get_icon_url(ent.dxf.name, layer)
+                    p.style.iconstyle.color = layer_colors[layer]
+                    p.description = f"Infraestructura Tigo\nBloque: {ent.dxf.name}\nCapa: {layer}"
 
-       st.download_button(
-           label="💾 DESCARGAR KML FINAL",
-           data=kml_string,
-           file_name=f"{Path(uploaded_file.name).stem}_TIGO.kml",
-           mime="application/vnd.google-earth.kml+xml"
-       )
+                elif ent.dxftype() == "LINE":
+                    coords = [
+                        transformer.transform(ent.dxf.start.x, ent.dxf.start.y),
+                        transformer.transform(ent.dxf.end.x, ent.dxf.end.y)
+                    ]
+                    ls = target.newlinestring(name=layer, coords=coords)
+                    ls.style.linestyle.color = layer_colors[layer]
+                    ls.style.linestyle.width = 2
 
-   except Exception as e:
-       st.error(f"Error crítico durante el proceso: {e}")
+                elif ent.dxftype() in ["LWPOLYLINE", "POLYLINE"]:
+                    try:
+                        points = [transformer.transform(p[0], p[1]) for p in ent.get_points()]
+                        if points:
+                            ls = target.newlinestring(name=layer, coords=points)
+                            ls.style.linestyle.color = layer_colors[layer]
+                            ls.style.linestyle.width = 2
+                    except: continue
+
+                if i % 200 == 0:
+                    progress_bar.progress((i + 1) / total)
+
+            status.update(label="¡Conversión completada con éxito!", state="complete", expanded=False)
+
+        st.balloons()
+
+        # Preparar descarga
+        kml_data = kml.kml()
+
+        st.markdown('<div class="tigo-card" style="text-align: center;">', unsafe_allow_html=True)
+        st.success(f"Archivo '{uploaded_file.name}' listo para Google Earth.")
+        st.download_button(
+            label="📥 DESCARGAR KML FINAL",
+            data=kml_data,
+            file_name=f"{Path(uploaded_file.name).stem}_TIGO_CONVERTED.kml",
+            mime="application/vnd.google-earth.kml+xml"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Error técnico durante el proceso: {str(e)}")
+        st.info("Recomendación: Verifica que el DXF no esté abierto en AutoCAD mientras lo subes.")
 
 st.markdown("---")
-st.caption("Herramienta de Ingeniería - Tigo Network Automation")
+st.caption("© 2026 Tigo Engineering Dept | Automatización de Redes")
