@@ -65,7 +65,10 @@ if uploaded_file is not None:
 
        with st.spinner('Cargando geometría en memoria...'):
            # Usamos readbytes para evitar errores de 'utf-8' o 'cp1252'
-           doc = ezdxf.readbytes(bytes_data)
+           # Método alternativo más compatible
+        import io
+        stream = io.BytesIO(bytes_data)
+        doc = ezdxf.readfile(stream)
            msp = doc.modelspace()
            entities = list(msp)
            total = len(entities)
