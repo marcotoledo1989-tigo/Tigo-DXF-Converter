@@ -4,19 +4,19 @@ import simplekml
 from pyproj import Transformer
 from pathlib import Path
 import random
-import io
+import io  # Vital para manejar archivos en memoria
 
 # --- CONFIGURACIÓN DE MARCA TIGO ---
 TIGO_BLUE = "#00338D"
 TIGO_YELLOW = "#FFF000"
 
 st.set_page_config(
-   page_title="Tigo - Convertidor de Archivos",
+   page_title="Tigo - Convertidor de Red Pesado",
    page_icon="📡",
    layout="centered"
 )
 
-# Estilo personalizado para mejorar la interfaz y soportar carga de datos
+# Estilo personalizado Tigo
 st.markdown(f"""
    <style>
    .stApp {{ background-color: #f4f4f4; }}
@@ -32,8 +32,7 @@ st.markdown(f"""
    </style>
    """, unsafe_allow_html=True)
 
-# --- LÓGICA DE CONVERSIÓN OPTIMIZADA ---
-# Definimos el transformador una sola vez fuera del bucle para ganar velocidad
+# --- LÓGICA DE CONVERSIÓN ---
 transformer = Transformer.from_crs("EPSG:32719", "EPSG:4326", always_xy=True)
 
 def color_kml_random():
@@ -55,24 +54,23 @@ st.image("https://upload.wikimedia.org/wikipedia/commons/b/b0/Tigo.svg", width=1
 st.title("Convertidor de Archivos")
 st.info("🚀 Optimizado para archivos de ingeniería pesados (EPSG:32719)")
 
-# Aumentamos el límite de carga de archivos por si acaso (Streamlit por defecto tiene 200MB)
 uploaded_file = st.file_uploader("Subir archivo DXF", type=["dxf"])
 
 if uploaded_file is not None:
    try:
-       # 1. LEER ARCHIVO COMO BYTES (Solución al error anterior)
+       # 1. LEER ARCHIVO DESDE MEMORIA (Corrección Error No such file)
        bytes_data = uploaded_file.getvalue()
 
        with st.spinner('Cargando geometría en memoria...'):
-            stream = io.BytesIO(bytes_data)
-            doc = ezdxf.readfile(stream)
-            msp = doc.modelspace()
-            entities = list(msp)
-            total = len(entities)
+           stream = io.BytesIO(bytes_data)
+           doc = ezdxf.readfile(stream)
+           msp = doc.modelspace()
+           entities = list(msp)
+           total = len(entities)
 
-            kml = simplekml.Kml()
-            folders = {}
-            colores = {}
+       kml = simplekml.Kml()
+       folders = {}
+       colores = {}
 
        st.write(f"Procesando **{total}** entidades...")
        progress_bar = st.progress(0)
@@ -86,7 +84,6 @@ if uploaded_file is not None:
 
            folder = folders[layer]
 
-           # Inserción de Bloques (Postes, Cámaras, etc.)
            if entity.dxftype() == "INSERT":
                x, y = entity.dxf.insert.x, entity.dxf.insert.y
                lon, lat = transformer.transform(x, y)
@@ -95,7 +92,6 @@ if uploaded_file is not None:
                p.style.iconstyle.color = colores[layer]
                p.description = f"Infraestructura Tigo\nBloque: {entity.dxf.name}\nCapa: {layer}"
 
-           # Líneas Simples
            elif entity.dxftype() == "LINE":
                x1, y1 = entity.dxf.start.x, entity.dxf.start.y
                x2, y2 = entity.dxf.end.x, entity.dxf.end.y
@@ -105,7 +101,6 @@ if uploaded_file is not None:
                ls.style.linestyle.color = colores[layer]
                ls.style.linestyle.width = 2
 
-           # Polilíneas (Ductos, Cables, Trazados largos)
            elif entity.dxftype() in ["LWPOLYLINE", "POLYLINE"]:
                try:
                    puntos_proyecto = []
@@ -119,21 +114,21 @@ if uploaded_file is not None:
                except:
                    continue
 
-           # Actualizar barra de progreso cada 200 entidades para no saturar la web
+           # Actualizar barra cada 200 entidades
            if i % 200 == 0:
                progress_bar.progress((i + 1) / total)
 
-       # 3. GENERACIÓN DEL KML
+       # 3. GENERACIÓN DEL KML FINAL
        progress_bar.progress(1.0)
        st.success("¡Conversión exitosa!")
 
-       output = io.StringIO()
-       output.write(kml.kml())
+       # Guardar resultado en memoria para descarga
+       kml_string = kml.kml()
 
        st.download_button(
            label="💾 DESCARGAR KML FINAL",
-           data=output.getvalue(),
-           file_name=f"{Path(uploaded_file.name).stem}_PROCESADO.kml",
+           data=kml_string,
+           file_name=f"{Path(uploaded_file.name).stem}_TIGO.kml",
            mime="application/vnd.google-earth.kml+xml"
        )
 
