@@ -64,18 +64,15 @@ if uploaded_file is not None:
        bytes_data = uploaded_file.getvalue()
 
        with st.spinner('Cargando geometría en memoria...'):
-           # Usamos readbytes para evitar errores de 'utf-8' o 'cp1252'
-           # Método alternativo más compatible
-        import io
-              stream = io.BytesIO(bytes_data)
-              doc = ezdxf.readfile(stream)
-              msp = doc.modelspace()
-              entities = list(msp)
-              total = len(entities)
+            stream = io.BytesIO(bytes_data)
+            doc = ezdxf.readfile(stream)
+            msp = doc.modelspace()
+            entities = list(msp)
+            total = len(entities)
 
-               kml = simplekml.Kml()
-               folders = {}
-               colores = {}
+            kml = simplekml.Kml()
+            folders = {}
+            colores = {}
 
        st.write(f"Procesando **{total}** entidades...")
        progress_bar = st.progress(0)
