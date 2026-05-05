@@ -52,7 +52,7 @@ def obtener_icono_por_bloque(nombre_bloque, layer):
 
 # --- INTERFAZ DE USUARIO ---
 st.image("https://upload.wikimedia.org/wikipedia/commons/b/b0/Tigo.svg", width=150)
-st.title("Convertidor de Red Externa")
+st.title("Convertidor de Archivos")
 st.info("🚀 Optimizado para archivos de ingeniería pesados (EPSG:32719)")
 
 # Aumentamos el límite de carga de archivos por si acaso (Streamlit por defecto tiene 200MB)
