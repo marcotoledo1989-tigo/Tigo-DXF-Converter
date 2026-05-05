@@ -78,8 +78,9 @@ uploaded_file = st.file_uploader("Arrastra aquí el archivo DXF para procesar", 
 if uploaded_file is not None:
     try:
         with st.spinner('Procesando cartografía...'):
-            content = uploaded_file.read().decode("utf-8", errors="ignore")
-            doc = ezdxf.readstr(content)
+# Leer el archivo como flujo de bytes para mayor compatibilidad
+            file_bytes = io.BytesIO(uploaded_file.getvalue())
+            doc = ezdxf.readfile(file_bytes)
             msp = doc.modelspace()
 
             kml = simplekml.Kml()
