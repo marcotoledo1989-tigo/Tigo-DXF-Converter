@@ -1,21 +1,4 @@
-        streamlit
-        ezdxf
-        simplekml
-        pyproj
-        ```
-2.  **Conecta con Streamlit Cloud:**
-    *   Entra en [share.streamlit.io](https://share.streamlit.io/).
-    *   Inicia sesión con tu cuenta de GitHub.
-    *   Haz clic en **"New app"**, selecciona tu repositorio y el archivo `app.py`.
-3.  **¡Listo!:**
-    *   Streamlit te dará una URL (ejemplo: `tigo-dxf-converter.streamlit.app`) que puedes enviar por correo o Teams a quien necesite usar la herramienta.
-
----
-
-### Resumen de Mantenimiento
-
-*   **Coordenadas:** Si en algún momento cambian de zona (por ejemplo, de EPSG:32719 a otra), solo debes editar la línea del `transformer` en el código.
-*   **Iconos:** Si quieres agregar nuevos símbolos (ej. "Antena", "Splitter"), solo añade una línea extra en la función `obtener_icono_por_bloque`.
-*   **Seguridad:** Al usar Streamlit Cloud, los archivos se procesan en memoria y se borran al cerrar la sesión, lo cual es seguro para datos sensibles de red externa.
-
-¿Necesitas ayuda con el primer paso o con la configuración de las coordenadas?
+streamlit
+ezdxf
+simplekml
+pyproj
