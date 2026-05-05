@@ -67,8 +67,8 @@ if uploaded_file is not None:
            # Usamos readbytes para evitar errores de 'utf-8' o 'cp1252'
            # Método alternativo más compatible
         import io
-        stream = io.BytesIO(bytes_data)
-        doc = ezdxf.readfile(stream)
+           stream = io.BytesIO(bytes_data)
+           doc = ezdxf.readfile(stream)
            msp = doc.modelspace()
            entities = list(msp)
            total = len(entities)
